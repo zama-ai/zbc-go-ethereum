@@ -20,11 +20,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/state"
 )
 
 // precompiledTest defines the input/output pairs for precompiled contract tests.
@@ -93,12 +96,44 @@ var blake2FMalformedInputTests = []precompiledFailureTest{
 	},
 }
 
+type statefulPrecompileAccessibleState struct {
+	interpreter *EVMInterpreter
+}
+
+func (s *statefulPrecompileAccessibleState) Interpreter() *EVMInterpreter {
+	return s.interpreter
+}
+
+// FIXME: create it correctly
+func newTestInterpreter() *EVMInterpreter {
+	// cfg := Config{IsGasEstimation: false}
+	evm := &EVM{}
+	evm.Context = BlockContext{}
+	evm.Context.Transfer = func(StateDB, common.Address, common.Address, *big.Int) {}
+	evm.Context.CanTransfer = func(StateDB, common.Address, *big.Int) bool { return true }
+	interpreter := NewEVMInterpreter(evm)
+	evm.interpreter = interpreter
+	db := rawdb.NewMemoryDatabase()
+	state, _ := state.New(common.Hash{}, state.NewDatabase(db), nil)
+	interpreter.evm.StateDB = state
+	return interpreter
+}
+
+func newTestState() *statefulPrecompileAccessibleState {
+	s := new(statefulPrecompileAccessibleState)
+	interpreter := newTestInterpreter()
+	s.interpreter = interpreter
+	return s
+}
+
 func testPrecompiled(addr string, test precompiledTest, t *testing.T) {
 	p := allPrecompiles[common.HexToAddress(addr)]
 	in := common.Hex2Bytes(test.Input)
-	gas := p.RequiredGas(in)
+	state := newTestState()
+	state.interpreter.readOnly = false
+	gas := p.RequiredGas(state, in)
 	t.Run(fmt.Sprintf("%s-Gas=%d", test.Name, gas), func(t *testing.T) {
-		if res, _, err := RunPrecompiledContract(p, in, gas); err != nil {
+		if res, _, err := RunPrecompiledContract(p, state, common.HexToAddress(addr), common.HexToAddress(addr), in, gas); err != nil {
 			t.Error(err)
 		} else if common.Bytes2Hex(res) != test.Expected {
 			t.Errorf("Expected %v, got %v", test.Expected, common.Bytes2Hex(res))
@@ -117,10 +152,12 @@ func testPrecompiled(addr string, test precompiledTest, t *testing.T) {
 func testPrecompiledOOG(addr string, test precompiledTest, t *testing.T) {
 	p := allPrecompiles[common.HexToAddress(addr)]
 	in := common.Hex2Bytes(test.Input)
-	gas := p.RequiredGas(in) - 1
+	state := newTestState()
+	state.interpreter.readOnly = false
+	gas := p.RequiredGas(state, in) - 1
 
 	t.Run(fmt.Sprintf("%s-Gas=%d", test.Name, gas), func(t *testing.T) {
-		_, _, err := RunPrecompiledContract(p, in, gas)
+		_, _, err := RunPrecompiledContract(p, state, common.HexToAddress(addr), common.HexToAddress(addr), in, gas)
 		if err.Error() != "out of gas" {
 			t.Errorf("Expected error [out of gas], got [%v]", err)
 		}
@@ -135,9 +172,11 @@ func testPrecompiledOOG(addr string, test precompiledTest, t *testing.T) {
 func testPrecompiledFailure(addr string, test precompiledFailureTest, t *testing.T) {
 	p := allPrecompiles[common.HexToAddress(addr)]
 	in := common.Hex2Bytes(test.Input)
-	gas := p.RequiredGas(in)
+	state := newTestState()
+	state.interpreter.readOnly = false
+	gas := p.RequiredGas(state, in)
 	t.Run(test.Name, func(t *testing.T) {
-		_, _, err := RunPrecompiledContract(p, in, gas)
+		_, _, err := RunPrecompiledContract(p, state, common.HexToAddress(addr), common.HexToAddress(addr), in, gas)
 		if err.Error() != test.ExpectedError {
 			t.Errorf("Expected error [%v], got [%v]", test.ExpectedError, err)
 		}
@@ -155,7 +194,9 @@ func benchmarkPrecompiled(addr string, test precompiledTest, bench *testing.B) {
 	}
 	p := allPrecompiles[common.HexToAddress(addr)]
 	in := common.Hex2Bytes(test.Input)
-	reqGas := p.RequiredGas(in)
+	state := newTestState()
+	state.interpreter.readOnly = false
+	reqGas := p.RequiredGas(state, in)
 
 	var (
 		res  []byte
@@ -169,7 +210,7 @@ func benchmarkPrecompiled(addr string, test precompiledTest, bench *testing.B) {
 		bench.ResetTimer()
 		for i := 0; i < bench.N; i++ {
 			copy(data, in)
-			res, _, err = RunPrecompiledContract(p, data, reqGas)
+			res, _, err = RunPrecompiledContract(p, state, common.HexToAddress(addr), common.HexToAddress(addr), data, reqGas)
 		}
 		bench.StopTimer()
 		elapsed := uint64(time.Since(start))
