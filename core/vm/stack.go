@@ -60,6 +60,10 @@ func (st *Stack) pop() (ret uint256.Int) {
 	return
 }
 
+func (st *Stack) Pop() uint256.Int {
+	return st.pop()
+}
+
 func (st *Stack) len() int {
 	return len(st.data)
 }
@@ -74,6 +78,10 @@ func (st *Stack) dup(n int) {
 
 func (st *Stack) peek() *uint256.Int {
 	return &st.data[st.len()-1]
+}
+
+func (st *Stack) Peek() *uint256.Int {
+	return st.peek()
 }
 
 // Back returns the n'th item in stack

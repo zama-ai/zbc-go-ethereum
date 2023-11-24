@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/zama-ai/fhevm-go/fhevm"
 )
 
 // Config are the configuration options for the Interpreter
@@ -29,6 +30,8 @@ type Config struct {
 	NoBaseFee               bool      // Forces the EIP-1559 baseFee to 0 (needed for 0 price calls)
 	EnablePreimageRecording bool      // Enables recording of SHA3/keccak preimages
 	ExtraEips               []int     // Additional EIPS that are to be enabled
+	IsEthCall               bool
+	IsGasEstimation         bool
 }
 
 // ScopeContext contains the things that are per-call, such as stack and memory,
@@ -37,6 +40,18 @@ type ScopeContext struct {
 	Memory   *Memory
 	Stack    *Stack
 	Contract *Contract
+}
+
+func (s *ScopeContext) GetMemory() fhevm.Memory {
+	return s.Memory
+}
+
+func (s *ScopeContext) GetStack() fhevm.Stack {
+	return s.Stack
+}
+
+func (s *ScopeContext) GetContract() fhevm.Contract {
+	return s.Contract
 }
 
 // EVMInterpreter represents an EVM interpreter
@@ -107,7 +122,10 @@ func NewEVMInterpreter(evm *EVM) *EVMInterpreter {
 func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (ret []byte, err error) {
 	// Increment the call depth which is restricted to 1024
 	in.evm.depth++
-	defer func() { in.evm.depth-- }()
+	defer func() {
+		fhevm.RemoveVerifiedCipherextsAtCurrentDepth(in.evm.FhevmEnvironment())
+		in.evm.depth--
+	}()
 
 	// Make sure the readOnly is only set if we aren't in readOnly yet.
 	// This also makes sure that the readOnly flag isn't removed for child calls.
@@ -235,7 +253,7 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (
 	}
 
 	if err == errStopToken {
-		err = nil // clear stop token error
+		err = fhevm.EvalRemOptReqWhenStopToken(in.evm.FhevmEnvironment())
 	}
 
 	return res, err
