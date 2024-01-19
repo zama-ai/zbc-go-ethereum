@@ -17,6 +17,7 @@
 package vm
 
 import (
+	"context"
 	"math/big"
 	"sync/atomic"
 
@@ -148,6 +149,7 @@ func NewEVM(blockCtx BlockContext, txCtx TxContext, statedb StateDB, chainConfig
 			blockCtx.BlobBaseFee = new(big.Int)
 		}
 	}
+	logger := fhevm.NewDefaultLogger()
 	evm := &EVM{
 		Context:          blockCtx,
 		TxContext:        txCtx,
@@ -155,7 +157,7 @@ func NewEVM(blockCtx BlockContext, txCtx TxContext, statedb StateDB, chainConfig
 		Config:           config,
 		chainConfig:      chainConfig,
 		chainRules:       chainConfig.Rules(blockCtx.BlockNumber, blockCtx.Random != nil, blockCtx.Time),
-		fhevmEnvironment: FhevmImplementation{interpreter: nil, logger: &fhevm.DefaultLogger{}, data: fhevm.NewFhevmData(), params: fhevm.DefaultFhevmParams()},
+		fhevmEnvironment: FhevmImplementation{interpreter: nil, logger: logger, data: fhevm.NewFhevmData(), params: fhevm.DefaultFhevmParams()},
 		isGasEstimation:  config.IsGasEstimation,
 		isEthCall:        config.IsEthCall,
 	}
@@ -603,4 +605,8 @@ func (evm *FhevmImplementation) CreateContract(caller common.Address, code []byt
 
 func (evm *FhevmImplementation) CreateContract2(caller common.Address, code []byte, codeHash common.Hash, gas uint64, value *big.Int, address common.Address) ([]byte, common.Address, uint64, error) {
 	return evm.interpreter.evm.create(AccountRef(caller), &codeAndHash{code: code, hash: codeHash}, gas, value, address, CREATE2)
+}
+
+func (evm *FhevmImplementation) OtelContext() context.Context {
+	return context.TODO()
 }
