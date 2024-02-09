@@ -12,6 +12,43 @@ https://camo.githubusercontent.com/915b7be44ada53c290eb157634330494ebe3e30a/6874
 Automated builds are available for stable releases and the unstable master branch. Binary
 archives are published at https://geth.ethereum.org/downloads/.
 
+
+## Run with opentelemetry
+
+Run the jager service
+```bash
+ docker run -e COLLECTOR_OTLP_ENABLED=true \
+ -e LOG_LEVEL=debug -p 16686:16686 -p 14250:14250 -p 14268:14268 -p 14269:14269 \
+ -p 4317:4317 -p 4318:4318 -p 6831:6831/udp -p 6832:6832/udp jaegertracing/all-in-one:1.38 --log-level="debug"
+```
+
+Build from source ethermintd:
+```
+# In zbc-ethermint
+make prepare-local-build 
+make install
+
+./setup.sh
+./start.st
+./fund_test_adresses.sh
+```
+
+Run the kms
+```
+npx hardhat test --grep "should transfer tokens between two users" 
+```
+
+Run a test in fhevm
+
+```bash
+npx hardhat test --grep "should transfer tokens between two users" 
+```
+
+Open Jaeger UI:
+```
+http://localhost:16686/search
+```
+
 ## Building the source
 
 For prerequisites and detailed build instructions please read the [Installation Instructions](https://geth.ethereum.org/docs/getting-started/installing-geth).
