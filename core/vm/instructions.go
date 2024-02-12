@@ -17,8 +17,6 @@
 package vm
 
 import (
-	"fmt"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -516,14 +514,10 @@ func opMstore8(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]
 }
 
 func opSload(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
-	fmt.Println("CALL: opSload 50.0 --- geth --- instructions.go")
-
 	return fhevm.OpSload(pc, interpreter.evm.FhevmEnvironment(), scope)
 }
 
 func opSstore(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
-	fmt.Println("CALL: opSstore 50.0 --- geth --- instructions.go")
-
 	return fhevm.OpSstore(pc, interpreter.evm.FhevmEnvironment(), scope)
 }
 
@@ -619,7 +613,6 @@ func opCreate(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]b
 }
 
 func opCreate2(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
-	fmt.Println("CALL: opCreate2 5.0 --- instructions.go")
 	if interpreter.readOnly {
 		return nil, ErrWriteProtection
 	}
@@ -660,8 +653,6 @@ func opCreate2(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]
 }
 
 func opCall(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
-	fmt.Println("CALL: opCall 4.0 --- instructions.go")
-
 	stack := scope.Stack
 	// Pop gas. The actual gas in interpreter.evm.callGasTemp.
 	// We can use this as a temporary value
