@@ -18,8 +18,6 @@ package vm
 
 import (
 	"context"
-	"encoding/binary"
-	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
@@ -27,7 +25,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/zama-ai/fhevm-go/fhevm"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/trace"
 )
 
 // Config are the configuration options for the Interpreter
@@ -126,14 +123,18 @@ func NewEVMInterpreter(evm *EVM) *EVMInterpreter {
 // considered a revert-and-consume-all-gas operation except for
 // ErrExecutionReverted which means revert-and-keep-gas-left.
 func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (ret []byte, err error) {
-	// Increment the call depth which is restricted to 1024
-	fmt.Println("CALL: Run 0.0 --- interpreter.go")
 	ctx, span := otel.Tracer("fhevm").Start(context.TODO(), "InterpreterRun")
+	// set the execution context to be used by ops
+	in.evm.executionContext = ctx
 	defer span.End()
 
+	// Increment the call depth which is restricted to 1024
 	in.evm.depth++
 	defer func() {
+		_, span := otel.Tracer("fhevm").Start(ctx, "RemoveVerifiedCipherextsAtCurrentDepth")
 		fhevm.RemoveVerifiedCipherextsAtCurrentDepth(in.evm.FhevmEnvironment())
+		span.End()
+
 		in.evm.depth--
 	}()
 
@@ -255,27 +256,7 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (
 			logged = true
 		}
 		// execute the operation
-		// main span
-		var span trace.Span
-		if op.String() == STATICCALL.String() {
-
-			temp := callContext.Stack.pop()
-			// Pop other call parameters.
-			addr, inOffset, inSize, retOffset, retSize := callContext.Stack.pop(), callContext.Stack.pop(), callContext.Stack.pop(), callContext.Stack.pop(), callContext.Stack.pop()
-			callContext.Stack.push(&retSize)
-			callContext.Stack.push(&retOffset)
-			callContext.Stack.push(&inSize)
-			callContext.Stack.push(&inOffset)
-			callContext.Stack.push(&addr)
-			callContext.Stack.push(&temp)
-			var inputMemory = callContext.Memory.GetPtr(int64(inOffset.Uint64()), int64(inSize.Uint64()))
-			_, span = otel.Tracer("fhevm").Start(ctx, getFheFuncName(inputMemory))
-		}
-
 		res, err = operation.execute(&pc, in, callContext)
-		if op.String() == STATICCALL.String() {
-			span.End()
-		}
 
 		if err != nil {
 			break
@@ -284,58 +265,10 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (
 	}
 
 	if err == errStopToken {
+		_, span := otel.Tracer("fhevm").Start(ctx, "EvalRemOptReqWhenStopToken")
 		err = fhevm.EvalRemOptReqWhenStopToken(in.evm.FhevmEnvironment())
+		span.End()
 	}
 
 	return res, err
-}
-
-func makeKeccakSignature(input string) uint32 {
-
-	return binary.BigEndian.Uint32(crypto.Keccak256([]byte(input))[0:4])
-}
-
-var signatureFheAdd = makeKeccakSignature("fheAdd(uint256,uint256,bytes1)")
-var signatureFheLe = makeKeccakSignature("fheLe(uint256,uint256,bytes1)")
-var signatureFheSub = makeKeccakSignature("fheSub(uint256,uint256,bytes1)")
-var signatureFheIfThenElse = makeKeccakSignature("fheIfThenElse(uint256,uint256,uint256)")
-var signatureVerifyCiphertext = makeKeccakSignature("verifyCiphertext(bytes)")
-var signatureReencrypt = makeKeccakSignature("reencrypt(uint256,uint256)")
-var signatureTrivialEncrypt = makeKeccakSignature("trivialEncrypt(uint256,bytes1)")
-var signatureCast = makeKeccakSignature("cast(uint256,bytes1)")
-
-func getFheFuncName(input []byte) string {
-	if len(input) < 4 {
-		return "tooShort"
-	}
-	// first 4 bytes are for the function signature
-	signature := binary.BigEndian.Uint32(input[0:4])
-	switch signature {
-	case signatureFheAdd:
-		return "fheAddRun"
-
-	case signatureFheSub:
-		return "fheSubRun"
-
-	case signatureFheLe:
-		return "fheLeRun"
-
-	case signatureFheIfThenElse:
-		return "fheIfThenElseRun"
-
-	case signatureVerifyCiphertext:
-		return "fheVerifyRun"
-
-	case signatureReencrypt:
-		return "fheReencryptRun"
-
-	case signatureTrivialEncrypt:
-		return "fheTrivialEncryptRun"
-
-	case signatureCast:
-		return "fheCastRun"
-
-	default:
-		return "fheUnknown"
-	}
 }
