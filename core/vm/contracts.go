@@ -17,7 +17,6 @@
 package vm
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
@@ -33,7 +32,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/zama-ai/fhevm-go/fhevm"
-	"go.opentelemetry.io/otel"
 	"golang.org/x/crypto/ripemd160"
 )
 
@@ -199,12 +197,7 @@ func (c *fheLib) RequiredGas(accessibleState PrecompileAccessibleState, input []
 }
 
 func (c *fheLib) Run(accessibleState PrecompileAccessibleState, caller common.Address, addr common.Address, input []byte, readOnly bool) ([]byte, error) {
-	fmt.Println("CALL: func (c *fheLib) Run 3.0 --- conracts.go")
-	// tp := otel.GetTracerProvider()
-	ctx, span := otel.Tracer("fhevm").Start(context.TODO(), addr.String())
-	span.AddEvent("Calling precompile")
-	defer span.End()
-	return fhevm.FheLibRun(accessibleState.Interpreter().evm.FhevmEnvironment(), caller, addr, input, readOnly, ctx)
+	return fhevm.FheLibRun(accessibleState.Interpreter().evm.FhevmEnvironment(), caller, addr, input, readOnly)
 }
 
 // ECRECOVER implemented as a native contract.

@@ -18,7 +18,6 @@ package vm
 
 import (
 	"context"
-	"fmt"
 	"math/big"
 	"sync/atomic"
 
@@ -127,6 +126,9 @@ type EVM struct {
 	fhevmEnvironment FhevmImplementation
 	isGasEstimation  bool
 	isEthCall        bool
+	// Used by EVM ops to create Otel spans from a single context.
+	// The default value is nil and means we disable Otel
+	executionContext context.Context
 }
 
 type FhevmImplementation struct {
@@ -161,6 +163,7 @@ func NewEVM(blockCtx BlockContext, txCtx TxContext, statedb StateDB, chainConfig
 		fhevmEnvironment: FhevmImplementation{interpreter: nil, logger: logger, data: fhevm.NewFhevmData(), params: fhevm.DefaultFhevmParams()},
 		isGasEstimation:  config.IsGasEstimation,
 		isEthCall:        config.IsEthCall,
+		executionContext: nil,
 	}
 	evm.interpreter = NewEVMInterpreter(evm)
 	evm.fhevmEnvironment.interpreter = evm.interpreter
@@ -196,8 +199,6 @@ func (evm *EVM) Interpreter() *EVMInterpreter {
 // the necessary steps to create accounts and reverses the state in case of an
 // execution error or failed value transfer.
 func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error) {
-
-	fmt.Println("CALL: Call 1.0 --- evm.go")
 	// Fail if we're trying to execute above the call depth limit
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
@@ -611,5 +612,5 @@ func (evm *FhevmImplementation) CreateContract2(caller common.Address, code []by
 }
 
 func (evm *FhevmImplementation) OtelContext() context.Context {
-	return context.TODO()
+	return evm.interpreter.evm.executionContext
 }
