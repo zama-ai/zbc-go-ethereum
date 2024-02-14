@@ -65,7 +65,9 @@ require (
 	github.com/zama-ai/fhevm-go v0.1.5
 	go.opentelemetry.io/otel v1.23.1
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.23.0
-	go.opentelemetry.io/otel/sdk v1.23.0
+	go.opentelemetry.io/otel/exporters/stdout/stdoutmetric v1.23.1
+	go.opentelemetry.io/otel/sdk v1.23.1
+	go.opentelemetry.io/otel/sdk/metric v1.23.1
 	go.opentelemetry.io/otel/trace v1.23.1
 	go.uber.org/automaxprocs v1.5.2
 	golang.org/x/crypto v0.16.0

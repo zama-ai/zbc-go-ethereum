@@ -8,11 +8,12 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
 	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	otelsdk "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
-	"go.opentelemetry.io/otel/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -21,13 +22,7 @@ import (
 type OtlpConfig struct {
 	ServiceName           string
 	OtelCollectorEndpoint string
-	// 0.0 (none) to 1.0 (all)
-	SamplingRatio float64
 }
-
-const (
-	defaultTracerName = "otel-instrumented-apps"
-)
 
 func init() {
 	collectorEndpoint, present := os.LookupEnv("FHEVM_OTEL_COLLECTOR_ENDPOINT")
@@ -37,22 +32,20 @@ func init() {
 	cfg := &OtlpConfig{
 		ServiceName:           "fhevm",
 		OtelCollectorEndpoint: collectorEndpoint,
-		SamplingRatio:         1,
 	}
 
-	_, err := InitProvider(cfg)
+	_, err := initTraceProvider(cfg)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = InitMeterProvider(cfg)
 	if err != nil {
 		log.Fatal(err)
 	}
 }
 
-var defaultTracer = otel.Tracer(defaultTracerName)
-
-func Default() trace.Tracer {
-	return defaultTracer
-}
-
-func InitProvider(cfg *OtlpConfig) (*otelsdk.TracerProvider, error) {
+func initTraceProvider(cfg *OtlpConfig) (*otelsdk.TracerProvider, error) {
 	var err error
 	tp := &otelsdk.TracerProvider{}
 	if cfg.OtelCollectorEndpoint != "" {
@@ -89,4 +82,37 @@ func initOtelTracer(cfg *OtlpConfig) (*otelsdk.TracerProvider, error) {
 	)
 
 	return tp, nil
+}
+
+func InitMeterProvider(cfg *OtlpConfig) error {
+	res, err := newResource(cfg)
+	if err != nil {
+		return err
+	}
+	meterProvider, err := newMeterProvider(res)
+	if err != nil {
+		return err
+	}
+	otel.SetMeterProvider(meterProvider)
+	return nil
+}
+
+func newResource(cfg *OtlpConfig) (*resource.Resource, error) {
+	return resource.Merge(resource.Default(),
+		resource.NewWithAttributes(semconv.SchemaURL,
+			semconv.ServiceName(cfg.ServiceName),
+		))
+}
+
+func newMeterProvider(res *resource.Resource) (*metric.MeterProvider, error) {
+	metricExporter, err := stdoutmetric.New()
+	if err != nil {
+		return nil, err
+	}
+
+	meterProvider := metric.NewMeterProvider(
+		metric.WithResource(res),
+		metric.WithReader(metric.NewPeriodicReader(metricExporter)),
+	)
+	return meterProvider, nil
 }
