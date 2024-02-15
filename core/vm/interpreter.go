@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/zama-ai/fhevm-go/fhevm"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // Config are the configuration options for the Interpreter
@@ -123,10 +124,12 @@ func NewEVMInterpreter(evm *EVM) *EVMInterpreter {
 // considered a revert-and-consume-all-gas operation except for
 // ErrExecutionReverted which means revert-and-keep-gas-left.
 func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (ret []byte, err error) {
-	ctx, span := otel.Tracer("fhevm").Start(context.TODO(), "InterpreterRun")
+	ctx, runSpan := otel.Tracer("fhevm").Start(context.TODO(), "InterpreterRun")
+	runSpan.SetAttributes(attribute.KeyValue{Key: "eth_call", Value: attribute.BoolValue(in.evm.isEthCall)})
+	runSpan.SetAttributes(attribute.KeyValue{Key: "gas_estimation", Value: attribute.BoolValue(in.evm.isGasEstimation)})
 	// set the execution context to be used by ops
 	in.evm.executionContext = ctx
-	defer span.End()
+	defer runSpan.End()
 
 	// Increment the call depth which is restricted to 1024
 	in.evm.depth++
@@ -259,6 +262,7 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (
 		res, err = operation.execute(&pc, in, callContext)
 
 		if err != nil {
+			runSpan.RecordError(err)
 			break
 		}
 		pc++
