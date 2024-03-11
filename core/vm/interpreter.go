@@ -269,9 +269,7 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (
 	}
 
 	if err == errStopToken {
-		_, span := otel.Tracer("fhevm").Start(ctx, "EvalRemOptReqWhenStopToken")
-		err = fhevm.EvalRemOptReqWhenStopToken(in.evm.FhevmEnvironment())
-		span.End()
+		err = nil // clear stop token error
 	}
 
 	return res, err
