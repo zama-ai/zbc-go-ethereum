@@ -62,7 +62,7 @@ require (
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	github.com/tyler-smith/go-bip39 v1.1.0
 	github.com/urfave/cli/v2 v2.25.7
-	github.com/zama-ai/fhevm-go v0.2.0-3
+	github.com/zama-ai/fhevm-go v0.2.0-5
 	go.opentelemetry.io/otel v1.23.1
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.23.0
 	go.opentelemetry.io/otel/exporters/stdout/stdoutmetric v1.23.1
