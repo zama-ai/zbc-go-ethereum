@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/zama-ai/fhevm-go/fhevm"
 )
 
 func makeGasSStoreFunc(clearingRefund uint64) gasFunc {
@@ -55,6 +56,12 @@ func makeGasSStoreFunc(clearingRefund uint64) gasFunc {
 			// EIP 2200 original clause:
 			//		return params.SloadGasEIP2200, nil
 			return cost + params.WarmStorageReadCostEIP2929, nil // SLOAD_GAS
+		}
+		// TODO: For now, every SSTORE referring to a ciphertext incurs the same cost, irrespective
+		// of the original and current values of the storage slot. Refunds for ciphertexts are not taken into account.
+		ct := fhevm.GetCiphertextFromMemory(evm.FhevmEnvironment(), value)
+		if ct != nil {
+			cost += evm.fhevmEnvironment.params.GasCosts.FheStorageSstoreGas[ct.Type()]
 		}
 		original := evm.StateDB.GetCommittedState(contract.Address(), x.Bytes32())
 		if original == current {

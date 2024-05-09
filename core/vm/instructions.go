@@ -514,7 +514,11 @@ func opMstore8(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]
 }
 
 func opSload(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
-	return fhevm.OpSload(pc, interpreter.evm.FhevmEnvironment(), scope)
+	loc := scope.Stack.peek()
+	hash := common.Hash(loc.Bytes32())
+	val := interpreter.evm.StateDB.GetState(scope.Contract.Address(), hash)
+	loc.SetBytes(val.Bytes())
+	return nil, nil
 }
 
 func opSstore(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
@@ -676,8 +680,6 @@ func opCall(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byt
 		bigVal = value.ToBig()
 	}
 
-	verifiedBefore := fhevm.DelegateCiphertextHandlesInArgs(interpreter.evm.FhevmEnvironment(), args)
-	defer fhevm.RestoreVerifiedDepths(interpreter.evm.FhevmEnvironment(), verifiedBefore)
 	ret, returnGas, err := interpreter.evm.Call(scope.Contract, toAddr, args, gas, bigVal)
 
 	if err != nil {
@@ -714,8 +716,6 @@ func opCallCode(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([
 		bigVal = value.ToBig()
 	}
 
-	verifiedBefore := fhevm.DelegateCiphertextHandlesInArgs(interpreter.evm.FhevmEnvironment(), args)
-	defer fhevm.RestoreVerifiedDepths(interpreter.evm.FhevmEnvironment(), verifiedBefore)
 	ret, returnGas, err := interpreter.evm.CallCode(scope.Contract, toAddr, args, gas, bigVal)
 	if err != nil {
 		temp.Clear()
@@ -772,8 +772,6 @@ func opStaticCall(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) 
 	// Get arguments from the memory.
 	args := scope.Memory.GetPtr(int64(inOffset.Uint64()), int64(inSize.Uint64()))
 
-	verifiedBefore := fhevm.DelegateCiphertextHandlesInArgs(interpreter.evm.FhevmEnvironment(), args)
-	defer fhevm.RestoreVerifiedDepths(interpreter.evm.FhevmEnvironment(), verifiedBefore)
 	ret, returnGas, err := interpreter.evm.StaticCall(scope.Contract, toAddr, args, gas)
 	if err != nil {
 		temp.Clear()
@@ -791,7 +789,10 @@ func opStaticCall(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) 
 }
 
 func opReturn(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
-	return fhevm.OpReturn(pc, interpreter.evm.FhevmEnvironment(), scope), errStopToken
+	offset, size := scope.Stack.pop(), scope.Stack.pop()
+	ret := scope.Memory.GetPtr(int64(offset.Uint64()), int64(size.Uint64()))
+
+	return ret, errStopToken
 }
 
 func opRevert(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
@@ -814,7 +815,10 @@ func opSelfdestruct(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext
 	if interpreter.readOnly {
 		return nil, ErrWriteProtection
 	}
-	beneficiary, balance := fhevm.OpSelfdestruct(pc, interpreter.evm.FhevmEnvironment(), scope)
+	beneficiary := scope.Stack.pop()
+	balance := interpreter.evm.StateDB.GetBalance(scope.Contract.Address())
+	interpreter.evm.StateDB.AddBalance(beneficiary.Bytes20(), balance)
+	interpreter.evm.StateDB.SelfDestruct(scope.Contract.Address())
 	if tracer := interpreter.evm.Config.Tracer; tracer != nil {
 		tracer.CaptureEnter(SELFDESTRUCT, scope.Contract.Address(), beneficiary.Bytes20(), []byte{}, 0, balance)
 		tracer.CaptureExit([]byte{}, 0, nil)
