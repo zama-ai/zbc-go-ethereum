@@ -59,8 +59,9 @@ func makeGasSStoreFunc(clearingRefund uint64) gasFunc {
 		}
 		// TODO: For now, every SSTORE referring to a ciphertext incurs the same cost, irrespective
 		// of the original and current values of the storage slot. Refunds for ciphertexts are not taken into account.
-		if t := fhevm.GetTypeOfVerifiedCiphertext(evm.FhevmEnvironment(), value); t != nil {
-			cost += evm.fhevmEnvironment.params.GasCosts.ProtectedStorageSstoreGas[*t]
+		ct := fhevm.GetCiphertextFromMemory(evm.FhevmEnvironment(), value)
+		if ct != nil {
+			cost += evm.fhevmEnvironment.params.GasCosts.FheStorageSstoreGas[ct.Type()]
 		}
 		original := evm.StateDB.GetCommittedState(contract.Address(), x.Bytes32())
 		if original == current {
