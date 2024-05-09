@@ -134,10 +134,6 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (
 	// Increment the call depth which is restricted to 1024
 	in.evm.depth++
 	defer func() {
-		_, span := otel.Tracer("fhevm").Start(ctx, "RemoveVerifiedCipherextsAtCurrentDepth")
-		fhevm.RemoveVerifiedCipherextsAtCurrentDepth(in.evm.FhevmEnvironment())
-		span.End()
-
 		in.evm.depth--
 	}()
 
