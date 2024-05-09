@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/zama-ai/fhevm-go/fhevm"
 )
 
 func makeGasSStoreFunc(clearingRefund uint64) gasFunc {
@@ -55,6 +56,11 @@ func makeGasSStoreFunc(clearingRefund uint64) gasFunc {
 			// EIP 2200 original clause:
 			//		return params.SloadGasEIP2200, nil
 			return cost + params.WarmStorageReadCostEIP2929, nil // SLOAD_GAS
+		}
+		// TODO: For now, every SSTORE referring to a ciphertext incurs the same cost, irrespective
+		// of the original and current values of the storage slot. Refunds for ciphertexts are not taken into account.
+		if t := fhevm.GetTypeOfVerifiedCiphertext(evm.FhevmEnvironment(), value); t != nil {
+			cost += evm.fhevmEnvironment.params.GasCosts.ProtectedStorageSstoreGas[*t]
 		}
 		original := evm.StateDB.GetCommittedState(contract.Address(), x.Bytes32())
 		if original == current {
@@ -103,14 +109,26 @@ func makeGasSStoreFunc(clearingRefund uint64) gasFunc {
 func gasSLoadEIP2929(evm *EVM, contract *Contract, stack *Stack, mem *Memory, memorySize uint64) (uint64, error) {
 	loc := stack.peek()
 	slot := common.Hash(loc.Bytes32())
+
+	// Add cost if value is a ciphertext handle.
+	protectedStorageGas := uint64(0)
+	value := evm.StateDB.GetState(contract.Address(), slot)
+	// If not already loaded, try to load.
+	if fhevm.GetTypeOfVerifiedCiphertext(evm.FhevmEnvironment(), value) == nil {
+		t := fhevm.GetTypeOfPersistedCiphertext(evm.FhevmEnvironment(), contract.Address(), value)
+		if t != nil {
+			protectedStorageGas += evm.fhevmEnvironment.params.GasCosts.ProtectedStorageSloadGas[*t]
+		}
+	}
+
 	// Check slot presence in the access list
 	if _, slotPresent := evm.StateDB.SlotInAccessList(contract.Address(), slot); !slotPresent {
 		// If the caller cannot afford the cost, this change will be rolled back
 		// If he does afford it, we can skip checking the same thing later on, during execution
 		evm.StateDB.AddSlotToAccessList(contract.Address(), slot)
-		return params.ColdSloadCostEIP2929, nil
+		return params.ColdSloadCostEIP2929 + protectedStorageGas, nil
 	}
-	return params.WarmStorageReadCostEIP2929, nil
+	return params.WarmStorageReadCostEIP2929 + protectedStorageGas, nil
 }
 
 // gasExtCodeCopyEIP2929 implements extcodecopy according to EIP-2929
