@@ -85,6 +85,7 @@ type TxContext struct {
 	// Message information
 	Origin     common.Address // Provides information for ORIGIN
 	GasPrice   *big.Int       // Provides information for GASPRICE (and is used to zero the basefee if NoBaseFee is set)
+	GasLimit   uint64         // Transaction gas limit
 	BlobHashes []common.Hash  // Provides information for BLOBHASH
 	BlobFeeCap *big.Int       // Is used to zero the blobbasefee if NoBaseFee is set
 }
@@ -613,4 +614,9 @@ func (evm *FhevmImplementation) CreateContract2(caller common.Address, code []by
 
 func (evm *FhevmImplementation) OtelContext() context.Context {
 	return evm.interpreter.evm.executionContext
+}
+
+// GasLimit returns the gas limit of the current transaction context.
+func (evm *FhevmImplementation) GasLimit() uint64 {
+	return evm.interpreter.evm.GasLimit
 }
