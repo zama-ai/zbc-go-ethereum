@@ -55,6 +55,7 @@ var PrecompiledContractsHomestead = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{3}):  &ripemd160hash{},
 	common.BytesToAddress([]byte{4}):  &dataCopy{},
 	common.BytesToAddress([]byte{93}): &fheLib{},
+	common.BytesToAddress([]byte{94}): &teeLib{},
 }
 
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
@@ -69,6 +70,7 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{7}):  &bn256ScalarMulByzantium{},
 	common.BytesToAddress([]byte{8}):  &bn256PairingByzantium{},
 	common.BytesToAddress([]byte{93}): &fheLib{},
+	common.BytesToAddress([]byte{94}): &teeLib{},
 }
 
 // PrecompiledContractsIstanbul contains the default set of pre-compiled Ethereum
@@ -84,6 +86,7 @@ var PrecompiledContractsIstanbul = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{8}):  &bn256PairingIstanbul{},
 	common.BytesToAddress([]byte{9}):  &blake2F{},
 	common.BytesToAddress([]byte{93}): &fheLib{},
+	common.BytesToAddress([]byte{94}): &teeLib{},
 }
 
 // PrecompiledContractsBerlin contains the default set of pre-compiled Ethereum
@@ -99,6 +102,7 @@ var PrecompiledContractsBerlin = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{8}):  &bn256PairingIstanbul{},
 	common.BytesToAddress([]byte{9}):  &blake2F{},
 	common.BytesToAddress([]byte{93}): &fheLib{},
+	common.BytesToAddress([]byte{94}): &teeLib{},
 }
 
 // PrecompiledContractsCancun contains the default set of pre-compiled Ethereum
@@ -115,6 +119,7 @@ var PrecompiledContractsCancun = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{9}):    &blake2F{},
 	common.BytesToAddress([]byte{0x0a}): &kzgPointEvaluation{},
 	common.BytesToAddress([]byte{93}):   &fheLib{},
+	common.BytesToAddress([]byte{94}):   &teeLib{},
 }
 
 // PrecompiledContractsBLS contains the set of pre-compiled Ethereum
@@ -130,6 +135,7 @@ var PrecompiledContractsBLS = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{17}): &bls12381MapG1{},
 	common.BytesToAddress([]byte{18}): &bls12381MapG2{},
 	common.BytesToAddress([]byte{93}): &fheLib{},
+	common.BytesToAddress([]byte{94}): &teeLib{},
 }
 
 var (
@@ -198,6 +204,17 @@ func (c *fheLib) RequiredGas(accessibleState PrecompileAccessibleState, input []
 
 func (c *fheLib) Run(accessibleState PrecompileAccessibleState, caller common.Address, addr common.Address, input []byte, readOnly bool) ([]byte, error) {
 	return fhevm.FheLibRun(accessibleState.Interpreter().evm.FhevmEnvironment(), caller, addr, input, readOnly)
+}
+
+// teeLib calls into the different precompile functions available in the tee
+type teeLib struct{}
+
+func (c *teeLib) RequiredGas(accessibleState PrecompileAccessibleState, input []byte) uint64 {
+	return fhevm.TeeLibRequiredGas(accessibleState.Interpreter().evm.FhevmEnvironment(), input)
+}
+
+func (c *teeLib) Run(accessibleState PrecompileAccessibleState, caller common.Address, addr common.Address, input []byte, readOnly bool) ([]byte, error) {
+	return fhevm.TeeLibRun(accessibleState.Interpreter().evm.FhevmEnvironment(), caller, addr, input, readOnly)
 }
 
 // ECRECOVER implemented as a native contract.
